@@ -1,138 +1,114 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Office Time Calculator</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f5f7ff;
-      margin: 0;
-      padding: 20px;
-      display: flex;
-      justify-content: center;
+<script>
+// Convert HH:MM:SS AM/PM → total seconds
+function toSeconds(t) {
+  const [time, mod] = t.split(" ");
+  let [h, m, s] = time.split(":").map(Number);
+
+  if (mod === "PM" && h !== 12) h += 12;
+  if (mod === "AM" && h === 12) h = 0;
+
+  return h * 3600 + m * 60 + (s || 0);
+}
+
+// Convert seconds → hh:mm:ss AM/PM
+function to12h(sec) {
+  sec = Math.max(0, sec);
+  let h24 = Math.floor(sec / 3600) % 24;
+  let m = Math.floor((sec % 3600) / 60);
+  let s = sec % 60;
+
+  const ap = h24 >= 12 ? "PM" : "AM";
+  let h = h24 % 12;
+  if (h === 0) h = 12;
+
+  return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")} ${ap}`;
+}
+
+// Convert seconds → hh:mm:ss
+function formatHMS(sec) {
+  sec = Math.max(0, sec);
+  let h = Math.floor(sec / 3600);
+  let m = Math.floor((sec % 3600) / 60);
+  let s = sec % 60;
+  return `${String(h).padStart(2,"0")}h ${String(m).padStart(2,"0")}m ${String(s).padStart(2,"0")}s`;
+}
+
+// Convert seconds → mm:ss
+function formatMS(sec) {
+  sec = Math.max(0, sec);
+  let m = Math.floor(sec / 60);
+  let s = sec % 60;
+  return `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+}
+
+function processLogs() {
+  const text = document.getElementById("logs").value.trim();
+  if (!text) return alert("Please paste logs");
+
+  const lines = text.split(/\r?\n+/);
+  let punches = [];
+  let brk = 0;
+
+  // 1️⃣Explicit break lines: "00h 33m 48s Break"
+  for (let line of lines) {
+    let match = line.match(/(\d{1,2})h\s*(\d{1,2})m\s*(\d{1,2})s/i);
+    if (match) {
+      let h = Number(match[1]), m = Number(match[2]), s = Number(match[3]);
+      brk += h * 3600 + m * 60 + s;
     }
-    .container {
-      background: white;
-      padding: 25px;
-      border-radius: 16px;
-      width: 420px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
+
+  // 2️⃣Extract punch times (newest → oldest)
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+
+    if (line.match(/AM|PM/)) {
+      const time = line.replace(/[^0-9: AMP]/g, "");
+
+      if (lines[i + 1] && lines[i + 1].includes("Punch In"))
+        punches.push({ type: "IN", time });
+
+      else if (lines[i + 1] && lines[i + 1].includes("Punch Out"))
+        punches.push({ type: "OUT", time });
     }
-    h2 {
-      text-align: center;
-      color: #2d3e8b;
+  }
+
+  // 3️⃣Reverse → oldest first
+  punches = punches.reverse();
+
+  let work = 0;
+
+  // 4️⃣Compute work & auto-break
+  for (let i = 0; i < punches.length - 1; i++) {
+    const a = punches[i], b = punches[i + 1];
+
+    if (a.type === "IN" && b.type === "OUT")
+      work += toSeconds(b.time) - toSeconds(a.time);
+
+    if (a.type === "OUT" && b.type === "IN") {
+      let gap = toSeconds(b.time) - toSeconds(a.time);
+      brk += gap;
     }
-    label {
-      font-weight: bold;
-      margin-top: 10px;
-      display: block;
-    }
-    input {
-      width: 100%;
-      padding: 10px;
-      margin-top: 5px;
-      border-radius: 8px;
-      border: 1px solid #ccc;
-    }
-    button {
-      width: 100%;
-      padding: 12px;
-      background: #4a63ff;
-      border: none;
-      margin-top: 15px;
-      color: white;
-      font-weight: bold;
-      border-radius: 8px;
-      cursor: pointer;
-    }
-    .result {
-      margin-top: 20px;
-      background: #eef2ff;
-      padding: 15px;
-      border-radius: 12px;
-    }
-    .result p {
-      margin: 6px 0;
-      font-size: 15px;
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h2>Office Punch Time Calculator</h2>
+  }
 
-    <label>Paste Your Punch Logs:</label>
-    <textarea id="logs" style="width:100%;height:160px;border-radius:10px;padding:10px;border:1px solid #ccc;" placeholder="Paste punch in/out logs here..."></textarea>
+  // 5️⃣Work requirement: 8 hours
+  const REQUIRED = 8 * 3600;
+  const OFFICE_END = toSeconds("06:30:00 PM");
 
-    <button onclick="processLogs()">Process</button>
+  const remainingWork = Math.max(REQUIRED - work, 0);
+  const lastIn = punches.filter(p => p.type === "IN").pop();
 
-    <div class="result" id="result"></div>
-  </div>
+  let expected = toSeconds(lastIn.time) + remainingWork;
+  if (expected > OFFICE_END) expected = OFFICE_END;
 
-  <script>
-// CLEAN NEW SCRIPT FOR NEWEST → OLDEST LOGS
-function toMinutes(t){
-      const [time,mod]=t.split(" ");
-      let [h,m,s]=time.split(":").map(Number);
-      if(mod==="PM"&&h!==12)h+=12;
-      if(mod==="AM"&&h===12)h=0;
-      return h*3600 + m*60 + (s||0);
-    }
+  // 6️⃣Remaining break = time left before 6:30 PM
+  const breakRemaining = OFFICE_END - expected;
 
-    function to12h(totalSec){
-      let totalMin=Math.floor(totalSec/60);
-      let h=Math.floor(totalMin/60)%24;
-      let m=totalMin%60;
-      let s=totalSec%60;
-      const ap=h>=12?"PM":"AM";
-      h=h%12;if(h===0)h=12;
-      return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')} ${ap}`; h*60+m;}
-function to12h(min){let h=Math.floor(min/60)%24;let m=min%60;const ap=h>=12?"PM":"AM";h=h%12;if(h===0)h=12;return `${h}:${String(m).padStart(2,"0")} ${ap}`;}
-function processLogs(){
- const text=document.getElementById("logs").value.trim();
- if(!text)return alert("Paste logs");
- const lines=text.split(/
-?
-+/);
- let punches=[];
-
- // NEWEST → OLDEST LOGS
- for(let i=0;i<lines.length;i++){
-   const line=lines[i];
-   if(line.match(/AM|PM/)){
-     const time=line.replace(/[^0-9: AMP]/g,"");
-     if(lines[i+1]&&lines[i+1].includes("Punch In")) punches.push({type:"IN",time});
-     else if(lines[i+1]&&lines[i+1].includes("Punch Out")) punches.push({type:"OUT",time});
-   }
- }
-
- // REVERSE → OLDEST FIRST
- punches=punches.reverse();
-
- let work=0, brk=0;
- for(let i=0;i<punches.length-1;i++){
-   const a=punches[i], b=punches[i+1];
-   if(a.type==="IN"&&b.type==="OUT") work+=toMinutes(b.time)-toMinutes(a.time);
-   if(a.type==="OUT"&&b.type==="IN") brk+=toMinutes(b.time)-toMinutes(a.time);
- }
-
- const REQUIRED=480; // 8 hrs
- const OFFICE_END=toMinutes("06:30 PM");
- const remainingWork=Math.max(REQUIRED-work,0);
- const lastIn=punches.filter(p=>p.type==="IN").pop();
- let expected=toMinutes(lastIn.time)+remainingWork;
- if(expected>OFFICE_END)expected=OFFICE_END;
-
- const breakRemaining=OFFICE_END-expected;
- document.getElementById("result").innerHTML=`
- <p><strong>Break Taken:</strong> ${Math.floor(brk/60)}h ${brk%60}m</p>
- <p><strong>Break Remaining:</strong> ${breakRemaining}m</p>
- <p><strong>Expected Punch Out:</strong> ${to12h(expected)}</p>`;
+  // 7️⃣Output
+  document.getElementById("result").innerHTML = `
+    <p><strong>Break Taken:</strong> ${formatHMS(brk)}</p>
+    <p><strong>Break Remaining:</strong> ${formatMS(breakRemaining)}</p>
+    <p><strong>Expected Punch Out:</strong> ${to12h(expected)}</p>
+  `;
 }
 </script>
-</body>
-</html>
-
-take the last chat coversation create a nice website with a smll company logo of mine and the web page should be attractive and modern
