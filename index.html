@@ -6,131 +6,185 @@
   <title>Office Time Calculator</title>
   <style>
     body {
-      font-family: Arial, sans-serif;
-      background: #f5f7ff;
+      font-family: "Poppins", sans-serif;
+      background: linear-gradient(135deg, #e6ecff, #ffffff);
       margin: 0;
-      padding: 20px;
+      padding: 40px 0;
       display: flex;
       justify-content: center;
     }
+
     .container {
-      background: white;
-      padding: 25px;
-      border-radius: 16px;
-      width: 420px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      background: #ffffff;
+      padding: 30px;
+      border-radius: 20px;
+      width: 450px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+      animation: fadeIn 0.7s ease-in-out;
     }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .logo {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 10px;
+    }
+    .logo img {
+      width: 90px;
+      height: auto;
+    }
+
     h2 {
       text-align: center;
       color: #2d3e8b;
+      margin-bottom: 20px;
+      font-weight: 700;
     }
+
     label {
-      font-weight: bold;
+      font-weight: 600;
       margin-top: 10px;
       display: block;
+      color: #333;
     }
-    input {
-      width: 100%;
-      padding: 10px;
-      margin-top: 5px;
-      border-radius: 8px;
-      border: 1px solid #ccc;
-    }
-    button {
+
+    textarea, input {
       width: 100%;
       padding: 12px;
+      margin-top: 6px;
+      border-radius: 10px;
+      border: 1px solid #bfc7e0;
+      font-size: 14px;
+      background: #f8f9ff;
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
       background: #4a63ff;
       border: none;
-      margin-top: 15px;
+      margin-top: 18px;
       color: white;
+      font-size: 16px;
       font-weight: bold;
-      border-radius: 8px;
+      border-radius: 10px;
       cursor: pointer;
+      transition: 0.3s;
     }
+
+    button:hover {
+      background: #3a52e6;
+    }
+
     .result {
       margin-top: 20px;
       background: #eef2ff;
-      padding: 15px;
-      border-radius: 12px;
+      padding: 18px;
+      border-radius: 14px;
+      box-shadow: inset 0 0 10px rgba(0,0,0,0.05);
     }
+
     .result p {
-      margin: 6px 0;
+      margin: 8px 0;
       font-size: 15px;
+      color: #333;
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 25px;
+      font-size: 13px;
+      color: #6b6b6b;
     }
   </style>
 </head>
 <body>
+
   <div class="container">
+
+    <div class="logo">
+      <img src="small-logo.png" alt="Company Logo">
+    </div>
+
     <h2>Office Punch Time Calculator</h2>
 
     <label>Paste Your Punch Logs:</label>
-    <textarea id="logs" style="width:100%;height:160px;border-radius:10px;padding:10px;border:1px solid #ccc;" placeholder="Paste punch in/out logs here..."></textarea>
+    <textarea id="logs" placeholder="Paste punch in/out logs here..."></textarea>
 
     <button onclick="processLogs()">Process</button>
 
     <div class="result" id="result"></div>
+
+    <footer>© 2025 Your Company Name • All Rights Reserved</footer>
   </div>
 
   <script>
-// CLEAN NEW SCRIPT FOR NEWEST → OLDEST LOGS
-function toMinutes(t){
-      const [time,mod]=t.split(" ");
-      let [h,m,s]=time.split(":").map(Number);
-      if(mod==="PM"&&h!==12)h+=12;
-      if(mod==="AM"&&h===12)h=0;
-      return h*3600 + m*60 + (s||0);
+    function toMinutes(t) {
+      const [time, mod] = t.split(" ");
+      let [h, m, s] = time.split(":" ).map(Number);
+      if (mod === "PM" && h !== 12) h += 12;
+      if (mod === "AM" && h === 12) h = 0;
+      return h * 3600 + m * 60 + (s || 0);
     }
 
-    function to12h(totalSec){
-      let totalMin=Math.floor(totalSec/60);
-      let h=Math.floor(totalMin/60)%24;
-      let m=totalMin%60;
-      let s=totalSec%60;
-      const ap=h>=12?"PM":"AM";
-      h=h%12;if(h===0)h=12;
-      return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')} ${ap}`; h*60+m;}
-function to12h(min){let h=Math.floor(min/60)%24;let m=min%60;const ap=h>=12?"PM":"AM";h=h%12;if(h===0)h=12;return `${h}:${String(m).padStart(2,"0")} ${ap}`;}
-function processLogs(){
- const text=document.getElementById("logs").value.trim();
- if(!text)return alert("Paste logs");
- const lines=text.split(/
-?
-+/);
- let punches=[];
+    function to12h(min) {
+      let h = Math.floor(min / 60) % 24;
+      let m = min % 60;
+      const ap = h >= 12 ? "PM" : "AM";
+      h = h % 12;
+      if (h === 0) h = 12;
+      return `${h}:${String(m).padStart(2, "0")} ${ap}`;
+    }
 
- // NEWEST → OLDEST LOGS
- for(let i=0;i<lines.length;i++){
-   const line=lines[i];
-   if(line.match(/AM|PM/)){
-     const time=line.replace(/[^0-9: AMP]/g,"");
-     if(lines[i+1]&&lines[i+1].includes("Punch In")) punches.push({type:"IN",time});
-     else if(lines[i+1]&&lines[i+1].includes("Punch Out")) punches.push({type:"OUT",time});
-   }
- }
+    function processLogs() {
+      const text = document.getElementById("logs").value.trim();
+      if (!text) return alert("Please paste logs first.");
 
- // REVERSE → OLDEST FIRST
- punches=punches.reverse();
+      const lines = text.split(/\r?\n+/);
+      let punches = [];
 
- let work=0, brk=0;
- for(let i=0;i<punches.length-1;i++){
-   const a=punches[i], b=punches[i+1];
-   if(a.type==="IN"&&b.type==="OUT") work+=toMinutes(b.time)-toMinutes(a.time);
-   if(a.type==="OUT"&&b.type==="IN") brk+=toMinutes(b.time)-toMinutes(a.time);
- }
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.match(/AM|PM/)) {
+          const time = line.replace(/[^0-9: AMP]/g, "");
+          if (lines[i + 1] && lines[i + 1].includes("Punch In")) punches.push({ type: "IN", time });
+          else if (lines[i + 1] && lines[i + 1].includes("Punch Out")) punches.push({ type: "OUT", time });
+        }
+      }
 
- const REQUIRED=480; // 8 hrs
- const OFFICE_END=toMinutes("06:30 PM");
- const remainingWork=Math.max(REQUIRED-work,0);
- const lastIn=punches.filter(p=>p.type==="IN").pop();
- let expected=toMinutes(lastIn.time)+remainingWork;
- if(expected>OFFICE_END)expected=OFFICE_END;
+      punches = punches.reverse();
 
- const breakRemaining=OFFICE_END-expected;
- document.getElementById("result").innerHTML=`
- <p><strong>Break Taken:</strong> ${Math.floor(brk/60)}h ${brk%60}m</p>
- <p><strong>Break Remaining:</strong> ${breakRemaining}m</p>
- <p><strong>Expected Punch Out:</strong> ${to12h(expected)}</p>`;
-}
-</script>
+      let work = 0, brk = 0;
+
+      for (let i = 0; i < punches.length - 1; i++) {
+        const a = punches[i], b = punches[i + 1];
+
+        if (a.type === "IN" && b.type === "OUT") work += toMinutes(b.time) - toMinutes(a.time);
+        if (a.type === "OUT" && b.type === "IN") brk += toMinutes(b.time) - toMinutes(a.time);
+      }
+
+      const REQUIRED = 480;
+      const OFFICE_END = toMinutes("06:30 PM");
+
+      const remainingWork = Math.max(REQUIRED - work / 60, 0);
+      const lastIn = punches.filter(p => p.type === "IN").pop();
+      let expected = toMinutes(lastIn.time) + remainingWork * 60;
+
+      if (expected > OFFICE_END) expected = OFFICE_END;
+
+      const breakRemaining = (OFFICE_END - expected) / 60;
+
+      document.getElementById("result").innerHTML = `
+        <p><strong>Break Taken:</strong> ${Math.floor(brk / 60)}h ${brk % 60}m</p>
+        <p><strong>Break Remaining:</strong> ${Math.floor(breakRemaining)} mins</p>
+        <p><strong>Expected Punch Out:</strong> ${to12h(expected / 60)}</p>
+      `;
+    }
+  </script>
+
 </body>
 </html>
