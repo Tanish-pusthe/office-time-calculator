@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Office Time Calculator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f7ff;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+    }
+    .container {
+      background: white;
+      padding: 25px;
+      border-radius: 16px;
+      width: 420px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    h2 {
+      text-align: center;
+      color: #2d3e8b;
+    }
+    label {
+      font-weight: bold;
+      margin-top: 10px;
+      display: block;
+    }
+    input {
+      width: 100%;
+      padding: 10px;
+      margin-top: 5px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      background: #4a63ff;
+      border: none;
+      margin-top: 15px;
+      color: white;
+      font-weight: bold;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .result {
+      margin-top: 20px;
+      background: #eef2ff;
+      padding: 15px;
+      border-radius: 12px;
+    }
+    .result p {
+      margin: 6px 0;
+      font-size: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Office Punch Time Calculator</h2>
+
+    <label>Paste Your Punch Logs:</label>
+    <textarea id="logs" style="width:100%;height:160px;border-radius:10px;padding:10px;border:1px solid #ccc;" placeholder="Paste punch in/out logs here..."></textarea>
+
+    <button onclick="processLogs()">Process</button>
+
+    <div class="result" id="result"></div>
+  </div>
+
+  <script>
+// CLEAN NEW SCRIPT FOR NEWEST → OLDEST LOGS
+function toMinutes(t){const [time,mod]=t.split(" ");let [h,m,s]=time.split(":").map(Number);if(mod==="PM"&&h!==12)h+=12;if(mod==="AM"&&h===12)h=0;return h*60+m;}
+function to12h(min){let h=Math.floor(min/60)%24;let m=min%60;const ap=h>=12?"PM":"AM";h=h%12;if(h===0)h=12;return `${h}:${String(m).padStart(2,"0")} ${ap}`;}
+function processLogs(){
+ const text=document.getElementById("logs").value.trim();
+ if(!text)return alert("Paste logs");
+ const lines=text.split(/\r?\n+/);
+ let punches=[];
+
+ // NEWEST → OLDEST LOGS
+ for(let i=0;i<lines.length;i++){
+   const line=lines[i];
+   if(line.match(/AM|PM/)){
+     const time=line.replace(/[^0-9: AMP]/g,"");
+     if(lines[i+1]&&lines[i+1].includes("Punch In")) punches.push({type:"IN",time});
+     else if(lines[i+1]&&lines[i+1].includes("Punch Out")) punches.push({type:"OUT",time});
+   }
+ }
+
+ // REVERSE → OLDEST FIRST
+ punches=punches.reverse();
+
+ let work=0, brk=0;
+ for(let i=0;i<punches.length-1;i++){
+   const a=punches[i], b=punches[i+1];
+   if(a.type==="IN"&&b.type==="OUT") work+=toMinutes(b.time)-toMinutes(a.time);
+   if(a.type==="OUT"&&b.type==="IN") brk+=toMinutes(b.time)-toMinutes(a.time);
+ }
+
+ const REQUIRED=480; // 8 hrs
+ const OFFICE_END=toMinutes("06:30 PM");
+ const remainingWork=Math.max(REQUIRED-work,0);
+ const lastIn=punches.filter(p=>p.type==="IN").pop();
+ let expected=toMinutes(lastIn.time)+remainingWork;
+ if(expected>OFFICE_END)expected=OFFICE_END;
+
+ const breakRemaining=OFFICE_END-expected;
+ document.getElementById("result").innerHTML=`
+ <p><strong>Break Taken:</strong> ${Math.floor(brk/60)}h ${brk%60}m</p>
+ <p><strong>Break Remaining:</strong> ${breakRemaining}m</p>
+ <p><strong>Expected Punch Out:</strong> ${to12h(expected)}</p>`;
+}
+</script>
+</body>
+</html>
