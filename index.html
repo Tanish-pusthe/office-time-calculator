@@ -110,7 +110,7 @@ function formatHMS(sec) {
   sec = Math.max(0, sec);
   let h = Math.floor(sec / 3600);
   let m = Math.floor((sec % 3600) / 60);
-  let s = sec % 60;
+  let s = sec % 3600 % 60;
   return `${String(h).padStart(2,"0")}h ${String(m).padStart(2,"0")}m ${String(s).padStart(2,"0")}s`;
 }
 
@@ -130,7 +130,7 @@ function processLogs() {
   let punches = [];
   let brk = 0;
 
-  // ✔ COUNT ONLY EXPLICIT BREAK LINES
+  // Count break lines only
   for (let line of lines) {
     let match = line.match(/(\d{1,2})h\s*(\d{1,2})m\s*(\d{1,2})s/i);
     if (match) {
@@ -154,34 +154,32 @@ function processLogs() {
     }
   }
 
-  // Reverse → oldest first
-  punches = punches.reverse();
+  punches = punches.reverse(); // oldest first
 
   let work = 0;
 
-  // ✔ FIX: REMOVE AUTO BREAK CALCULATION
+  // Calculate actual work (no auto break for gaps)
   for (let i = 0; i < punches.length - 1; i++) {
     const a = punches[i], b = punches[i + 1];
 
     if (a.type === "IN" && b.type === "OUT")
       work += toSeconds(b.time) - toSeconds(a.time);
-
-    // ❌ REMOVED: automatic OUT→IN gap break  
-    // if (a.type === "OUT" && b.type === "IN") { ... }
   }
 
-  // Required work: 8 hours
   const REQUIRED = 8 * 3600;
   const OFFICE_END = toSeconds("06:30:00 PM");
 
   const remainingWork = Math.max(REQUIRED - work, 0);
   const lastIn = punches.filter(p => p.type === "IN").pop();
 
+  // FIX → allow logout after 6:30 PM
   let expected = toSeconds(lastIn.time) + remainingWork;
-  if (expected > OFFICE_END) expected = OFFICE_END;
 
-  // Remaining break before 6:30 PM
-  const breakRemaining = OFFICE_END - expected;
+  // FIX → break remaining only meaningful if before 6:30 PM
+  let breakRemaining = 0;
+  if (expected < OFFICE_END) {
+    breakRemaining = OFFICE_END - expected;
+  }
 
   // Output
   document.getElementById("result").innerHTML = `
