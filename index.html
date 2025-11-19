@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Office Time Calculator</title>
-
   <style>
     body {
       font-family: "Poppins", sans-serif;
@@ -53,16 +52,14 @@
       color: #333;
     }
 
-    textarea {
+    textarea, input {
       width: 100%;
       padding: 12px;
-      height: 160px;
       margin-top: 6px;
       border-radius: 10px;
       border: 1px solid #bfc7e0;
       font-size: 14px;
       background: #f8f9ff;
-      resize: vertical;
     }
 
     button {
@@ -105,8 +102,8 @@
     }
   </style>
 </head>
-
 <body>
+
   <div class="container">
 
     <div class="logo">
@@ -126,86 +123,65 @@
   </div>
 
   <script>
-    // Convert HH:MM:SS AM/PM → seconds
-    function toSeconds(t) {
+    function toMinutes(t) {
       const [time, mod] = t.split(" ");
-      let [h, m, s] = time.split(":").map(Number);
-
+      let [h, m, s] = time.split(":" ).map(Number);
       if (mod === "PM" && h !== 12) h += 12;
       if (mod === "AM" && h === 12) h = 0;
-
       return h * 3600 + m * 60 + (s || 0);
     }
 
-    // Convert seconds → 12-hour format
-    function to12h(sec) {
-      sec = Math.floor(sec);
-
-      let h = Math.floor(sec / 3600) % 24;
-      let m = Math.floor((sec % 3600) / 60);
-
+    function to12h(min) {
+      let h = Math.floor(min / 60) % 24;
+      let m = min % 60;
       const ap = h >= 12 ? "PM" : "AM";
       h = h % 12;
       if (h === 0) h = 12;
-
       return `${h}:${String(m).padStart(2, "0")} ${ap}`;
     }
 
     function processLogs() {
       const text = document.getElementById("logs").value.trim();
-      if (!text) return alert("Please paste logs first!");
+      if (!text) return alert("Please paste logs first.");
 
       const lines = text.split(/\r?\n+/);
       let punches = [];
 
-      // Extract punch times and type
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-
         if (line.match(/AM|PM/)) {
           const time = line.replace(/[^0-9: AMP]/g, "");
-
-          if (lines[i + 1] && lines[i + 1].includes("Punch In"))
-            punches.push({ type: "IN", time });
-
-          else if (lines[i + 1] && lines[i + 1].includes("Punch Out"))
-            punches.push({ type: "OUT", time });
+          if (lines[i + 1] && lines[i + 1].includes("Punch In")) punches.push({ type: "IN", time });
+          else if (lines[i + 1] && lines[i + 1].includes("Punch Out")) punches.push({ type: "OUT", time });
         }
       }
 
-      // Reverse → oldest first
       punches = punches.reverse();
 
-      let work = 0;
-      let brk = 0;
+      let work = 0, brk = 0;
 
-      // Calculate work and break durations
       for (let i = 0; i < punches.length - 1; i++) {
         const a = punches[i], b = punches[i + 1];
 
-        if (a.type === "IN" && b.type === "OUT")
-          work += toSeconds(b.time) - toSeconds(a.time);
-
-        if (a.type === "OUT" && b.type === "IN")
-          brk += toSeconds(b.time) - toSeconds(a.time);
+        if (a.type === "IN" && b.type === "OUT") work += toMinutes(b.time) - toMinutes(a.time);
+        if (a.type === "OUT" && b.type === "IN") brk += toMinutes(b.time) - toMinutes(a.time);
       }
 
-      const REQUIRED = 480 * 60;  // 8 hours in seconds
-      const OFFICE_END = toSeconds("06:30:00 PM");
+      const REQUIRED = 480;
+      const OFFICE_END = toMinutes("06:30 PM");
 
-      const remainingWork = Math.max(REQUIRED - work, 0);
-
+      const remainingWork = Math.max(REQUIRED - work / 60, 0);
       const lastIn = punches.filter(p => p.type === "IN").pop();
-      let expected = toSeconds(lastIn.time) + remainingWork;
+      let expected = toMinutes(lastIn.time) + remainingWork * 60;
 
       if (expected > OFFICE_END) expected = OFFICE_END;
 
-      const breakRemaining = Math.max(OFFICE_END - expected, 0);
+      const breakRemaining = (OFFICE_END - expected) / 60;
 
       document.getElementById("result").innerHTML = `
-        <p><strong>Break Taken:</strong> ${Math.floor(brk / 3600)}h ${Math.floor((brk % 3600) / 60)}m</p>
-        <p><strong>Break Remaining:</strong> ${Math.floor(breakRemaining / 60)} mins</p>
-        <p><strong>Expected Punch Out:</strong> ${to12h(expected)}</p>
+        <p><strong>Break Taken:</strong> ${Math.floor(brk / 60)}h ${brk % 60}m</p>
+        <p><strong>Break Remaining:</strong> ${Math.floor(breakRemaining)} mins</p>
+        <p><strong>Expected Punch Out:</strong> ${to12h(expected / 60)}</p>
       `;
     }
   </script>
