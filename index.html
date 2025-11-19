@@ -1,77 +1,85 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Office Time Calculator</title>
-  <style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Office Time Calculator</title>
+
+<style>
     body {
-      font-family: Arial, sans-serif;
-      background: #f5f7ff;
-      margin: 0;
-      padding: 20px;
-      display: flex;
-      justify-content: center;
+        font-family: Arial, sans-serif;
+        background: #eef3ff;
+        margin: 0;
+        padding: 20px;
     }
-    .container {
-      background: white;
-      padding: 25px;
-      border-radius: 16px;
-      width: 420px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    }
+
     h2 {
-      text-align: center;
-      color: #2d3e8b;
+        text-align: center;
+        color: #304ffe;
+        margin-bottom: 20px;
     }
-    label {
-      font-weight: bold;
-      margin-top: 10px;
-      display: block;
+
+    .container {
+        max-width: 700px;
+        margin: auto;
+        background: #fff;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 0 12px rgba(0,0,0,0.1);
     }
-    input {
-      width: 100%;
-      padding: 10px;
-      margin-top: 5px;
-      border-radius: 8px;
-      border: 1px solid #ccc;
+
+    textarea {
+        width: 100%;
+        height: 240px;
+        padding: 12px;
+        border-radius: 8px;
+        border: 1px solid #bfc7ff;
+        font-size: 14px;
+        background: #f7f9ff;
     }
+
     button {
-      width: 100%;
-      padding: 12px;
-      background: #4a63ff;
-      border: none;
-      margin-top: 15px;
-      color: white;
-      font-weight: bold;
-      border-radius: 8px;
-      cursor: pointer;
+        width: 100%;
+        padding: 14px;
+        margin-top: 15px;
+        background: #304ffe;
+        border: none;
+        border-radius: 8px;
+        color: white;
+        font-size: 16px;
+        cursor: pointer;
     }
-    .result {
-      margin-top: 20px;
-      background: #eef2ff;
-      padding: 15px;
-      border-radius: 12px;
+
+    button:hover {
+        background: #1e39d6;
     }
-    .result p {
-      margin: 6px 0;
-      font-size: 15px;
+
+    #result {
+        margin-top: 25px;
+        padding: 15px;
+        background: #e9edff;
+        border-radius: 8px;
+        font-size: 16px;
     }
-  </style>
+
+    p {
+        margin: 8px 0;
+    }
+</style>
 </head>
+
 <body>
-  <div class="container">
-    <h2>Office Punch Time Calculator</h2>
 
-    <label>Paste Your Punch Logs:</label>
-    <textarea id="logs" style="width:100%;height:160px;border-radius:10px;padding:10px;border:1px solid #ccc;" placeholder="Paste punch in/out logs here..."></textarea>
+<h2>Office Time Calculator</h2>
 
-    <button onclick="processLogs()">Process</button>
+<div class="container">
+    <textarea id="logs" placeholder="Paste your punch logs here..."></textarea>
+    <button onclick="processLogs()">Calculate</button>
 
-    <div class="result" id="result"></div>
-  </div>
+    <div id="result"></div>
+</div>
 
-  <script>
+<script>
 // Convert HH:MM:SS AM/PM → total seconds
 function toSeconds(t) {
   const [time, mod] = t.split(" ");
@@ -122,7 +130,7 @@ function processLogs() {
   let punches = [];
   let brk = 0;
 
-  // 1️⃣Explicit break lines: "00h 33m 48s Break"
+  // ✔ COUNT ONLY EXPLICIT BREAK LINES
   for (let line of lines) {
     let match = line.match(/(\d{1,2})h\s*(\d{1,2})m\s*(\d{1,2})s/i);
     if (match) {
@@ -131,7 +139,7 @@ function processLogs() {
     }
   }
 
-  // 2️⃣Extract punch times (newest → oldest)
+  // Extract punch IN/OUT times
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
 
@@ -146,25 +154,23 @@ function processLogs() {
     }
   }
 
-  // 3️⃣Reverse → oldest first
+  // Reverse → oldest first
   punches = punches.reverse();
 
   let work = 0;
 
-  // 4️⃣Compute work & auto-break
+  // ✔ FIX: REMOVE AUTO BREAK CALCULATION
   for (let i = 0; i < punches.length - 1; i++) {
     const a = punches[i], b = punches[i + 1];
 
     if (a.type === "IN" && b.type === "OUT")
       work += toSeconds(b.time) - toSeconds(a.time);
 
-    if (a.type === "OUT" && b.type === "IN") {
-      let gap = toSeconds(b.time) - toSeconds(a.time);
-      brk += gap;
-    }
+    // ❌ REMOVED: automatic OUT→IN gap break  
+    // if (a.type === "OUT" && b.type === "IN") { ... }
   }
 
-  // 5️⃣Work requirement: 8 hours
+  // Required work: 8 hours
   const REQUIRED = 8 * 3600;
   const OFFICE_END = toSeconds("06:30:00 PM");
 
@@ -174,10 +180,10 @@ function processLogs() {
   let expected = toSeconds(lastIn.time) + remainingWork;
   if (expected > OFFICE_END) expected = OFFICE_END;
 
-  // 6️⃣Remaining break = time left before 6:30 PM
+  // Remaining break before 6:30 PM
   const breakRemaining = OFFICE_END - expected;
 
-  // 7️⃣Output
+  // Output
   document.getElementById("result").innerHTML = `
     <p><strong>Break Taken:</strong> ${formatHMS(brk)}</p>
     <p><strong>Break Remaining:</strong> ${formatMS(breakRemaining)}</p>
@@ -185,7 +191,6 @@ function processLogs() {
   `;
 }
 </script>
-
 
 </body>
 </html>
