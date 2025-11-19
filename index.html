@@ -86,13 +86,12 @@ function toSeconds(t) {
 // Convert seconds → hh:mm:ss AM/PM
 function to12h(sec) {
   sec = Math.max(0, sec);
-  let totalMin = Math.floor(sec / 60);
-  let h = Math.floor(totalMin / 60) % 24;
-  let m = totalMin % 60;
+  let h24 = Math.floor(sec / 3600) % 24;
+  let m = Math.floor((sec % 3600) / 60);
   let s = sec % 60;
 
-  const ap = h >= 12 ? "PM" : "AM";
-  h = h % 12;
+  const ap = h24 >= 12 ? "PM" : "AM";
+  let h = h24 % 12;
   if (h === 0) h = 12;
 
   return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")} ${ap}`;
@@ -121,47 +120,64 @@ function processLogs() {
 
   const lines = text.split(/\r?\n+/);
   let punches = [];
+  let brk = 0;
 
-  // NEWEST → OLDEST order
+  // 1️⃣Explicit break lines: "00h 33m 48s Break"
+  for (let line of lines) {
+    let match = line.match(/(\d{1,2})h\s*(\d{1,2})m\s*(\d{1,2})s/i);
+    if (match) {
+      let h = Number(match[1]), m = Number(match[2]), s = Number(match[3]);
+      brk += h * 3600 + m * 60 + s;
+    }
+  }
+
+  // 2️⃣Extract punch times (newest → oldest)
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
+
     if (line.match(/AM|PM/)) {
       const time = line.replace(/[^0-9: AMP]/g, "");
+
       if (lines[i + 1] && lines[i + 1].includes("Punch In"))
         punches.push({ type: "IN", time });
+
       else if (lines[i + 1] && lines[i + 1].includes("Punch Out"))
         punches.push({ type: "OUT", time });
     }
   }
 
-  // REVERSE → oldest first
+  // 3️⃣Reverse → oldest first
   punches = punches.reverse();
 
   let work = 0;
-  let brk = 0;
 
+  // 4️⃣Compute work & auto-break
   for (let i = 0; i < punches.length - 1; i++) {
-    const a = punches[i];
-    const b = punches[i + 1];
+    const a = punches[i], b = punches[i + 1];
 
     if (a.type === "IN" && b.type === "OUT")
       work += toSeconds(b.time) - toSeconds(a.time);
 
-    if (a.type === "OUT" && b.type === "IN")
-      brk += toSeconds(b.time) - toSeconds(a.time);
+    if (a.type === "OUT" && b.type === "IN") {
+      let gap = toSeconds(b.time) - toSeconds(a.time);
+      brk += gap;
+    }
   }
 
-  const REQUIRED = 8 * 3600; // 8 hours
+  // 5️⃣Work requirement: 8 hours
+  const REQUIRED = 8 * 3600;
   const OFFICE_END = toSeconds("06:30:00 PM");
 
   const remainingWork = Math.max(REQUIRED - work, 0);
   const lastIn = punches.filter(p => p.type === "IN").pop();
-  let expected = toSeconds(lastIn.time) + remainingWork;
 
+  let expected = toSeconds(lastIn.time) + remainingWork;
   if (expected > OFFICE_END) expected = OFFICE_END;
 
+  // 6️⃣Remaining break = time left before 6:30 PM
   const breakRemaining = OFFICE_END - expected;
 
+  // 7️⃣Output
   document.getElementById("result").innerHTML = `
     <p><strong>Break Taken:</strong> ${formatHMS(brk)}</p>
     <p><strong>Break Remaining:</strong> ${formatMS(breakRemaining)}</p>
@@ -169,7 +185,7 @@ function processLogs() {
   `;
 }
 </script>
-
 </body>
 </html>
+
 
