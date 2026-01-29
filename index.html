@@ -16,6 +16,7 @@ body {
 h2 {
   text-align: center;
   color: #304ffe;
+  margin-bottom: 20px;
 }
 
 .container {
@@ -72,7 +73,7 @@ p {
 <h2>Office Time Calculator</h2>
 
 <div class="container">
-  <textarea id="logs" placeholder="Paste your biometric logs here..."></textarea>
+  <textarea id="logs" placeholder="Paste your punch logs here..."></textarea>
   <button onclick="processLogs()">Calculate</button>
   <div id="result"></div>
 </div>
@@ -80,21 +81,20 @@ p {
 <script>
 // Convert HH:MM:SS AM/PM → seconds
 function toSeconds(t) {
-  const [time, ap] = t.split(" ");
+  const [time, mod] = t.split(" ");
   let [h, m, s] = time.split(":").map(Number);
-  if (ap === "PM" && h !== 12) h += 12;
-  if (ap === "AM" && h === 12) h = 0;
+  if (mod === "PM" && h !== 12) h += 12;
+  if (mod === "AM" && h === 12) h = 0;
   return h * 3600 + m * 60 + (s || 0);
 }
 
-// Seconds → hh:mm:ss AM/PM
+// Seconds → 12h
 function to12h(sec) {
   let h24 = Math.floor(sec / 3600) % 24;
   let m = Math.floor((sec % 3600) / 60);
   let s = sec % 60;
   const ap = h24 >= 12 ? "PM" : "AM";
-  let h = h24 % 12;
-  if (h === 0) h = 12;
+  let h = h24 % 12 || 12;
   return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")} ${ap}`;
 }
 
@@ -103,7 +103,7 @@ function formatHMS(sec) {
   let h = Math.floor(sec / 3600);
   let m = Math.floor((sec % 3600) / 60);
   let s = sec % 60;
-  return `${h}h ${m}m ${s}s`;
+  return `${String(h).padStart(2,"0")}h ${String(m).padStart(2,"0")}m ${String(s).padStart(2,"0")}s`;
 }
 
 // Seconds → mm:ss
@@ -115,25 +115,26 @@ function formatMS(sec) {
 
 function processLogs() {
   const text = document.getElementById("logs").value.trim();
-  if (!text) return alert("Paste biometric logs first");
+  if (!text) return alert("Please paste logs");
 
   const lines = text.split(/\r?\n+/);
   let punches = [];
-  let breakSeconds = 0;
+  let brk = 0;
 
-  // Extract break time
+  // Break calculation (unchanged)
   for (let line of lines) {
-    const m = line.match(/(\d+)h\s*(\d+)m\s*(\d+)s\s*Break/i);
-    if (m) {
-      breakSeconds += (+m[1] * 3600) + (+m[2] * 60) + (+m[3]);
+    const match = line.match(/(\d+)h\s*(\d+)m\s*(\d+)s/i);
+    if (match) {
+      brk += (+match[1] * 3600) + (+match[2] * 60) + (+match[3]);
     }
   }
 
-  // Extract Punch In / Out (ignore Late In)
+  // Punch extraction — FIXED Late In handling
   for (let i = 0; i < lines.length - 1; i++) {
-    if (lines[i].match(/\d{1,2}:\d{2}:\d{2}\s*(AM|PM)/)) {
-      const time = lines[i].trim();
+    if (lines[i].match(/AM|PM/)) {
+      const time = lines[i].replace(/[^0-9: AMP]/g, "");
 
+      // ❌ Ignore "Late in Punch In"
       if (
         lines[i + 1].includes("Punch In") &&
         !(lines[i + 2] && lines[i + 2].toLowerCase().includes("late"))
@@ -147,34 +148,28 @@ function processLogs() {
     }
   }
 
-  if (!punches.length) {
-    document.getElementById("result").innerHTML = "No valid punch data found";
-    return;
-  }
-
-  // Sort punches by time
+  // Correct order (instead of reverse)
   punches.sort((a, b) => toSeconds(a.time) - toSeconds(b.time));
 
-  // Calculate worked time
-  let workSeconds = 0;
+  let work = 0;
+
+  // Work calculation (same logic)
   for (let i = 0; i < punches.length - 1; i++) {
     if (punches[i].type === "IN" && punches[i + 1].type === "OUT") {
       const diff = toSeconds(punches[i + 1].time) - toSeconds(punches[i].time);
-      if (diff > 0) workSeconds += diff;
+      if (diff > 0) work += diff;
     }
   }
 
   const REQUIRED = 8 * 3600;
-  const remaining = Math.max(REQUIRED - workSeconds, 0);
+  const remainingWork = Math.max(REQUIRED - work, 0);
 
-  const lastIn = [...punches].reverse().find(p => p.type === "IN");
-  const expectedLogout = toSeconds(lastIn.time) + remaining;
+  const lastIn = punches.filter(p => p.type === "IN").pop();
+  const expected = toSeconds(lastIn.time) + remainingWork;
 
   document.getElementById("result").innerHTML = `
-    <p><strong>Break Taken:</strong> ${formatHMS(breakSeconds)}</p>
-    <p><strong>Worked Time:</strong> ${formatHMS(workSeconds)}</p>
-    <p><strong>Remaining Work:</strong> ${formatHMS(remaining)}</p>
-    <p><strong>Expected Punch Out:</strong> ${to12h(expectedLogout)}</p>
+    <p><strong>Break Taken:</strong> ${formatHMS(brk)}</p>
+    <p><strong>Expected Punch Out:</strong> ${to12h(expected)}</p>
   `;
 }
 </script>
